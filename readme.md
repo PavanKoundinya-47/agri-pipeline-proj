@@ -85,14 +85,16 @@ cd agri-pipeline-proj
 sudo docker build -t agri-pipeline .
 ```
 
+### Run Tests
+```bash
+sudo docker run --rm agri-pipeline pytest -v --cov=pipeline tests/
+```
+
 ### Run the pipeline
 ```bash
 sudo docker run -v $(pwd)/data:/app/data -v $(pwd)/reports:/app/reports agri-pipeline
 ```
-### Run Tests
-```bash
-pytest -v --cov=pipeline --cov-report=term-missing
-```
+
 
 
 
