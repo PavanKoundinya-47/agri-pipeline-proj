@@ -86,8 +86,13 @@ sudo docker build -t agri-pipeline .
 ```
 
 ### Run Tests
+Unit test coverage:
 ```bash
 sudo docker run --rm agri-pipeline pytest -v --cov=pipeline tests/
+```
+Unit tests:
+```bash
+sudo docker run --rm agri-pipeline pytest -v tests/
 ```
 
 ### Run the pipeline
