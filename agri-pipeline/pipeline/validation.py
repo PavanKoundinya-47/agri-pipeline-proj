@@ -3,7 +3,27 @@ import duckdb
 import pandas as pd
 
 def validate_data(df: pd.DataFrame, report_path: str):
+    """
+    Validate sensor data using DuckDB and generate a quality report.
 
+    Checks performed:
+      - Type validation (`value` numeric, `timestamp` string).
+      - Range checks (min/max per `reading_type`).
+      - Missing values count per `reading_type`.
+      - Hourly gap detection (missing timestamps per sensor/type).
+      - Profile summary (total & null counts per type).
+
+    If the DataFrame is empty, skips validation and returns an empty DataFrame.
+    Otherwise, saves a CSV report with sections (type_checks, range_checks,
+    missing, gaps, profile).
+
+    Args:
+        df (pd.DataFrame): Input sensor dataset.
+        report_path (str): Path to save the report CSV.
+
+    Returns:
+        pd.DataFrame: Empty DataFrame if no data, else None.
+    """
     if df.empty:
         print("⚠️ No data to validate. Skipping validation.")
         return pd.DataFrame()
