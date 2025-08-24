@@ -10,8 +10,6 @@ data/raw/*
 data/processed/*
 logs/*
 reports/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
 
 # Virtual envs
 .venv/
