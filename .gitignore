@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+
+# Data & logs
+data/raw/*
+data/processed/*
+logs/*
+reports/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Virtual envs
+.venv/
+env/
+*.egg-info
+
+# Checkpoints
+*.json
+
+# Docker
+*.dockerignore
+*.log
