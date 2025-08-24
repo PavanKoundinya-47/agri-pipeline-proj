@@ -11,7 +11,8 @@ COPY agri-pipeline/run_pipeline.py .
 COPY agri-pipeline/tests tests/
 
 # Create dirs
-RUN mkdir -p logs reports data/processed data/raw
+RUN mkdir -p logs reports data/processed data/raw && chmod -R 777 logs reports data
+
 
 CMD ["python", "run_pipeline.py", \
      "--raw_dir", "data/raw", \

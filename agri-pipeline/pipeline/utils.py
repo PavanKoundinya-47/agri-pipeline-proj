@@ -114,4 +114,4 @@ def save_checkpoint(state: Dict[str, Any], path: str = CHECKPOINT_PATH) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(state, f, indent=2)
-    os.chmod(path, 0o666)
+    # os.chmod(path, 0o666)
