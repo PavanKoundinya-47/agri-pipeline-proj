@@ -54,17 +54,34 @@ Raw files are provided daily in **Parquet format** (e.g., `data/raw/2025-06-01.p
    - **Partitioned** by date (and optionally by sensor_id)
    - Compressed **Parquet** format optimized for analytics
 
+4. **Synthetic Data Generator (`agri-pipeline/sample_data_generator.py`)**
+   - Creates sample raw sensor data in .parquet format under `data/raw/`
+   - **Configurable** 
+
+        Number of sensors (NUM_SENSORS)
+
+        Number of days (DAYS)
+
+        Reading types & expected ranges
+   - Generates files like:
+
+        data/raw/2025-07-01.parquet
+
+        data/raw/2025-07-02.parquet
+
+
 ---
 
 ## 🛠 🐳 Docker Setup [Build & run]
 
 ### Clone & Install
 ```bash
-git clone https://github.com/<your-username>/agri-pipeline.git
+git clone https://github.com/PavanKoundinya-47/agri-pipeline-proj.git
 ```
 
 ### Build the image
 ```bash
+cd agri-pipeline-proj
 sudo docker build -t agri-pipeline .
 ```
 
