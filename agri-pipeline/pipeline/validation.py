@@ -1,51 +1,37 @@
-
 import duckdb
 import pandas as pd
-from .utils import get_logger
-
-
-logger = get_logger("validation")
 
 def validate_data(df: pd.DataFrame, report_path: str):
-    """
-    Validate sensor data using DuckDB and generate a quality report.
-
-    Checks performed:
-      - Type validation (`value` numeric, `timestamp` string).
-      - Range checks (min/max per `reading_type`).
-      - Missing values count per `reading_type`.
-      - Hourly gap detection (missing timestamps per sensor/type).
-      - Profile summary (total & null counts per type).
-
-    If the DataFrame is empty, skips validation and returns an empty DataFrame.
-    Otherwise, saves a CSV report with sections (type_checks, range_checks,
-    missing, gaps, profile).
-
-    Args:
-        df (pd.DataFrame): Input sensor dataset.
-        report_path (str): Path to save the report CSV.
-
-    Returns:
-        pd.DataFrame: Empty DataFrame if no data, else None.
-    """
-    if df.empty:
-        logger.info("⚠️ No data to validate. Skipping validation.")
+    # Nothing to validate → return empty DataFrame
+    if df is None or df.empty:
+        print("⚠️ No data to validate. Skipping validation.")
         return pd.DataFrame()
 
     con = duckdb.connect()
-
     con.register("df", df)
 
-
     # --- Type checks ---
+    # 1) value must be numeric
+    # 2) timestamp column storage type must be VARCHAR or TIMESTAMP (incl. TIMESTAMPTZ)
+    # 3) every row must be parsable as TIMESTAMP (NULL or unparseable counted as invalid)
     type_checks = con.execute("""
         SELECT
-          SUM(CASE WHEN typeof(value) IN ('DOUBLE','FLOAT','DECIMAL') THEN 0 ELSE 1 END) AS invalid_value_type,
-          SUM(CASE WHEN typeof(timestamp) != 'VARCHAR' THEN 1 ELSE 0 END) AS invalid_timestamp_type
+          SUM(CASE
+                WHEN typeof(value) IN ('DOUBLE','FLOAT','DECIMAL','INTEGER','HUGEINT')
+                THEN 0 ELSE 1
+              END) AS invalid_value_type,
+          SUM(CASE
+                WHEN typeof(timestamp) IN ('VARCHAR','TIMESTAMP','TIMESTAMPTZ')
+                THEN 0 ELSE 1
+              END) AS invalid_timestamp_storage_type,
+          SUM(CASE
+                WHEN timestamp IS NULL OR try_cast(timestamp AS TIMESTAMP) IS NULL
+                THEN 1 ELSE 0
+              END) AS unparsable_timestamp_rows
         FROM df
     """).fetchdf()
 
-    # --- Range checks (example ranges) ---
+    # --- Range checks (quick profile of observed ranges) ---
     range_checks = con.execute("""
         SELECT reading_type,
                MIN(value) AS min_value,
@@ -54,7 +40,7 @@ def validate_data(df: pd.DataFrame, report_path: str):
         GROUP BY reading_type
     """).fetchdf()
 
-    # --- Missing values ---
+    # --- Missing values per reading_type ---
     missing = con.execute("""
         SELECT reading_type,
                COUNT(*) AS total,
@@ -62,48 +48,61 @@ def validate_data(df: pd.DataFrame, report_path: str):
         FROM df
         GROUP BY reading_type
     """).fetchdf()
-
-    # --- Gaps in hourly data ---
+    # --- Gaps in hourly data (robust to random minutes) ---
     gaps = con.execute("""
         WITH bounds AS (
-          SELECT sensor_id, reading_type,
-                MIN(CAST(timestamp AS TIMESTAMP)) AS min_ts,
-                MAX(CAST(timestamp AS TIMESTAMP)) AS max_ts
+          SELECT
+            sensor_id,
+            reading_type,
+            date_trunc('hour', MIN(try_cast(timestamp AS TIMESTAMP))) AS min_h,
+            date_trunc('hour', MAX(try_cast(timestamp AS TIMESTAMP))) AS max_h
           FROM df
           GROUP BY sensor_id, reading_type
         ),
         expected AS (
-          SELECT b.sensor_id, b.reading_type, t.ts
-          FROM bounds b,
-              UNNEST(generate_series(b.min_ts, b.max_ts, INTERVAL 1 HOUR)) AS t(ts)
+          SELECT
+            b.sensor_id,
+            b.reading_type,
+            gs.ts AS hour
+          FROM bounds b
+          CROSS JOIN generate_series(b.min_h, b.max_h, INTERVAL 1 HOUR) AS gs(ts)
         ),
         actual AS (
-          SELECT sensor_id, reading_type, CAST(timestamp AS TIMESTAMP) AS ts
+          SELECT
+            sensor_id,
+            reading_type,
+            date_trunc('hour', try_cast(timestamp AS TIMESTAMP)) AS hour
           FROM df
+          WHERE try_cast(timestamp AS TIMESTAMP) IS NOT NULL
+          GROUP BY 1,2,3
         )
-        SELECT e.sensor_id, e.reading_type,
-              COUNT(*) AS expected_hours,
-              COUNT(a.ts) AS actual_hours,
-              (COUNT(*) - COUNT(a.ts)) AS missing_hours
+        SELECT
+          e.sensor_id,
+          e.reading_type,
+          COUNT(*) AS expected_hours,
+          COUNT(a.hour) AS actual_hours,
+          (COUNT(*) - COUNT(a.hour)) AS missing_hours
         FROM expected e
         LEFT JOIN actual a
           ON e.sensor_id = a.sensor_id
-        AND e.reading_type = a.reading_type
-        AND e.ts = a.ts
+         AND e.reading_type = a.reading_type
+         AND e.hour = a.hour
         GROUP BY e.sensor_id, e.reading_type
         ORDER BY e.sensor_id, e.reading_type
     """).fetchdf()
 
 
-    # --- Profile ---
+    # --- Simple profile (per type) ---
     profile = con.execute("""
-          SELECT reading_type,
-                COUNT(*) AS total,
-                SUM(CASE WHEN value IS NULL THEN 1 ELSE 0 END) AS null_values
-          FROM df
-          GROUP BY reading_type
+        SELECT reading_type,
+               COUNT(*) AS total,
+               SUM(CASE WHEN value IS NULL THEN 1 ELSE 0 END) AS null_values
+        FROM df
+        GROUP BY reading_type
+        ORDER BY reading_type
     """).fetchdf()
 
+    # Save sections into one CSV with headers
     report = {
         "type_checks": type_checks,
         "range_checks": range_checks,
@@ -119,4 +118,4 @@ def validate_data(df: pd.DataFrame, report_path: str):
             f.write("\n\n")
 
     con.close()
-    logger.info(f"✅ Data quality report saved at {report_path}")
+    print(f"✅ Data quality report saved at {report_path}")
