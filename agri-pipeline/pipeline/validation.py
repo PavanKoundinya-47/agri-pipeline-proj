@@ -1,6 +1,10 @@
 
 import duckdb
 import pandas as pd
+from .utils import get_logger
+
+
+logger = get_logger("validation")
 
 def validate_data(df: pd.DataFrame, report_path: str):
     """
@@ -25,7 +29,7 @@ def validate_data(df: pd.DataFrame, report_path: str):
         pd.DataFrame: Empty DataFrame if no data, else None.
     """
     if df.empty:
-        print("⚠️ No data to validate. Skipping validation.")
+        logger.info("⚠️ No data to validate. Skipping validation.")
         return pd.DataFrame()
 
     con = duckdb.connect()
@@ -115,4 +119,4 @@ def validate_data(df: pd.DataFrame, report_path: str):
             f.write("\n\n")
 
     con.close()
-    print(f"✅ Data quality report saved at {report_path}")
+    logger.info(f"✅ Data quality report saved at {report_path}")

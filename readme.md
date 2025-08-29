@@ -74,6 +74,8 @@ Raw files are provided daily in **Parquet format** (e.g., `data/raw/2025-06-01.p
 
 ## 🛠 🐳 Docker Setup [Build & run]
 
+<!-- ![Pipeline Demo](Pipeline_Demo.webm) -->
+
 ### Clone & Install
 ```bash
 git clone https://github.com/PavanKoundinya-47/agri-pipeline-proj.git
@@ -81,23 +83,27 @@ git clone https://github.com/PavanKoundinya-47/agri-pipeline-proj.git
 
 ### Build the image
 ```bash
-cd agri-pipeline-proj
-sudo docker build -t agri-pipeline .
+docker build -t agri-pipeline .
 ```
 
 ### Run Tests
 Unit test coverage:
 ```bash
-sudo docker run --rm agri-pipeline pytest -v --cov=pipeline tests/
+docker run --rm agri-pipeline pytest -v --cov=pipeline tests/
 ```
 Unit tests:
 ```bash
-sudo docker run --rm agri-pipeline pytest -v tests/
+docker run --rm agri-pipeline pytest -v tests/
 ```
 
 ### Run the pipeline
+For Linux:
 ```bash
-sudo docker run -v $(pwd)/data:/app/data -v $(pwd)/reports:/app/reports agri-pipeline
+docker run -v $(pwd)/data:/app/data -v $(pwd)/reports:/app/reports agri-pipeline
+```
+For Windows:
+```bash
+docker run -v ${pwd}/data:/app/data -v ${pwd}/reports:/app/reports agri-pipeline
 ```
 
 

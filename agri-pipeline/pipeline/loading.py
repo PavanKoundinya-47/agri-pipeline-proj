@@ -1,6 +1,9 @@
 from __future__ import annotations
 import os
 import pandas as pd
+from .utils import get_logger
+
+logger = get_logger("ingestion")
 
 def store_data(df: pd.DataFrame, processed_dir: str, partition_by_sensor: bool=True) -> None:
     """
@@ -28,8 +31,8 @@ def store_data(df: pd.DataFrame, processed_dir: str, partition_by_sensor: bool=T
         if partition_by_sensor:
             base = os.path.join(base, f"sensor_id={sensor_id}")
         os.makedirs(base, exist_ok=True)
-        # os.chmod(base, 0o777)
+        os.chmod(base, 0o777)
         for rt, gg in g.groupby("reading_type"):
             out = os.path.join(base, f"{rt}.parquet")
             gg.to_parquet(out, index=False, compression="snappy")
-            # os.chmod(out, 0o666) 
+            os.chmod(out, 0o666) 

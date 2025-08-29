@@ -7,65 +7,15 @@ from .utils import EXPECTED_SCHEMA, get_logger,CHECKPOINT_PATH, load_checkpoint,
 
 logger = get_logger("ingestion")
 
-def describe_parquet(file_path: str) -> pd.DataFrame:
-    """
-    Describe the schema of a Parquet file using DuckDB.
-
-    Args:
-        file_path (str): Path to the parquet file.
-
-    Returns:
-        pd.DataFrame: Schema information of the file (columns, types, etc.).
-    """    
-    con = ddb.connect()
-    try:
-        return con.execute(f"DESCRIBE SELECT * FROM read_parquet('{file_path}')").df()
-    except Exception as e:
-        logger.error(f'Exception While Describing {file_path}')
-    finally:
-        con.close()
-
-def read_parquet_duckdb(file_path: str) -> pd.DataFrame:
-    """
-    Read a Parquet file into a DataFrame using DuckDB.
-
-    Args:
-        file_path (str): Path to the parquet file.
-
-    Returns:
-        pd.DataFrame: File contents as a Pandas DataFrame.
-    """
-    con = ddb.connect()
-    try:
-        df = con.execute(f"SELECT * FROM read_parquet('{file_path}')").df()
-        return df
-    except Exception as e:
-        logger.error(f'Exception While Reading {file_path}')
-    finally:
-        con.close()
-
-def schema_matches(df: pd.DataFrame) -> bool:
-    """
-    Validate whether a DataFrame matches the expected schema.
-
-    Args:
-        df (pd.DataFrame): Input DataFrame to check.
-
-    Returns:
-        bool: True if schema matches, False otherwise.
-    """
-    expected = set(EXPECTED_SCHEMA.keys())
-    present = set(df.columns)
-    return expected.issubset(present)
-
 
 def ingest_data(raw_dir: str) -> pd.DataFrame:
     """
     Ingest parquet files from a raw data directory.
 
     - Skips already processed files using checkpointing.
-    - Validates schema of incoming files.
+    - Uses DuckDB to inspect schemas and run validation queries.
     - Logs ingestion statistics (files read, records processed/failed).
+    - Handles corrupt/unreadable files and schema mismatches.
     - Stores processed filenames in a checkpoint file.
 
     Args:
@@ -85,6 +35,8 @@ def ingest_data(raw_dir: str) -> pd.DataFrame:
     records_total = 0
     records_failed = 0
 
+    con = ddb.connect()
+
     for file in files:
         filename = os.path.basename(file)
         filepath = os.path.join(raw_dir, file)
@@ -94,15 +46,42 @@ def ingest_data(raw_dir: str) -> pd.DataFrame:
             continue
 
         try:
+            # Inspect schema using DuckDB
+            schema_df = con.execute(f"DESCRIBE SELECT * FROM parquet_scan('{filepath}')").fetchdf()
+            actual_cols = set(schema_df["column_name"].str.lower())
+            expected_cols = set(EXPECTED_SCHEMA.keys())
+
+            # Schema validation
+            if actual_cols != expected_cols:
+                logger.error(f"Schema mismatch in {filename}. Expected {expected_cols}, got {actual_cols}")
+                records_failed += 1
+                continue
+
+            # Run validation queries inside DuckDB
+            stats = con.execute(f"""
+                SELECT 
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN value IS NULL THEN 1 ELSE 0 END) AS null_values,
+                    SUM(CASE WHEN battery_level IS NULL THEN 1 ELSE 0 END) AS null_battery
+                FROM parquet_scan('{filepath}')
+            """).fetchdf().iloc[0].to_dict()
+
+            logger.info(f"Validation for {filename}: {stats}")
+
+            # Load into pandas
             df = pd.read_parquet(filepath)
             df["source_file"] = filename
+
             all_data.append(df)
             records_total += len(df)
             files_read += 1
             processed_files.add(filename)
+
         except Exception as e:
             logger.error(f"Failed to read {filename}: {e}")
             records_failed += 1
+
+    con.close()
 
     if all_data:
         result = pd.concat(all_data, ignore_index=True)
@@ -111,9 +90,25 @@ def ingest_data(raw_dir: str) -> pd.DataFrame:
 
     save_checkpoint({"processed_files": list(processed_files)}, CHECKPOINT_PATH)
 
+    # Summary with DuckDB SQL aggregation
+    if not result.empty:
+        con = ddb.connect()
+        con.register("df", result)
+        summary = con.execute("""
+            SELECT COUNT(DISTINCT source_file) AS files,
+                   COUNT(*) AS records,
+                   SUM(CASE WHEN value IS NULL OR battery_level IS NULL THEN 1 ELSE 0 END) AS invalid_rows
+            FROM df
+        """).fetchdf().iloc[0].to_dict()
+        con.close()
+    else:
+        summary = {"files": 0, "records": 0, "invalid_rows": 0}
+
     logger.info(
         f"Ingestion summary: {{'files_read': {files_read}, "
         f"'records_total': {records_total}, "
-        f"'records_failed': {records_failed}}}"
+        f"'records_failed': {records_failed}, "
+        f"'duckdb_summary': {summary}}}"
     )
+    
     return result

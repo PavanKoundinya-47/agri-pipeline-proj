@@ -5,6 +5,11 @@ from datetime import timedelta
 import pytz
 from .utils import CALIBRATION, EXPECTED_RANGES
 
+from .utils import get_logger
+
+logger = get_logger("transform")
+
+
 IST = pytz.timezone("Asia/Kolkata")
 
 
