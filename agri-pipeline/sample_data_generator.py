@@ -15,7 +15,6 @@ READING_TYPES = {
     "humidity": {"min": 20, "max": 90},
     "soil_moisture": {"min": 0, "max": 100},
     "light_intensity": {"min": 100, "max": 1000},
-    "battery_level": {"min": 10, "max": 100}
 }
 
 np.random.seed(0)
@@ -28,30 +27,28 @@ def generate_day_data(date: datetime):
                 timestamp = date + timedelta(hours=hour, minutes=np.random.randint(0, 60))
 
                 value = np.random.uniform(bounds["min"], bounds["max"])
+                value = round(value, 2)
 
                 if np.random.rand() < 0.05:
                     value = None
 
                 # Introduce occasional erroneous values
                 elif np.random.rand() < 0.05:
-                    # extreme temp
                     if reading_type == "temperature":
                         value = np.random.choice([-50, 120])  
-                    # invalid %
                     elif reading_type == "humidity":
                         value = np.random.choice([-10, 150])  
-                    # impossible
                     elif reading_type == "soil_moisture":
                         value = np.random.choice([-5, 200])  
-                    # bad reading
                     elif reading_type == "light_intensity":
                         value = np.random.choice([-100, 5000])  
-                    # invalid
                     elif reading_type == "battery_level":
-                        value = np.random.choice([-20, 150])  
-
+                        value = np.random.choice([-20, 150]) 
+                
+                
                 battery_level = np.random.uniform(20, 100)
-                 # missing battery reading
+                battery_level = round(battery_level, 2)
+                
                 if np.random.rand() < 0.05:
                     battery_level = None 
 

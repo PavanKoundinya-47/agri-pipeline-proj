@@ -141,11 +141,11 @@ Anomaly Detection:
 ## range_checks
 | reading_type    | min_value | max_value |
 |-----------------|-----------|-----------|
-| temperature     | -50.0     | 120.0     |
-| soil_moisture   | -5.0      | 200.0     |
-| light_intensity | -100.0    | 5000.0    |
-| humidity        | -10.0     | 150.0     |
-| battery_level   | -20.0     | 150.0     |
+| temperature     | -10.0     | 60.0     |
+| soil_moisture   |  0        | 1        |
+| light_intensity |  0        | 2000.0   |
+| humidity        |  0        | 100.0    |
+| battery_level   |  0        | 100.0    |
 ## missing
 | reading_type    | total | missing_values |
 |-----------------|-------|----------------|
